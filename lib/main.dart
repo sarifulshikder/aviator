@@ -134,6 +134,20 @@ class _AviatorPageState extends State<AviatorPage> {
                 },
               ),
             ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Align(
+                alignment: Alignment.centerRight,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFF2A2F3A),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Text('...', style: TextStyle(color: Colors.white54)),
+                ),
+              ),
+            ),
             const SizedBox(height: 8),
             // Game area
             Expanded(
@@ -148,7 +162,8 @@ class _AviatorPageState extends State<AviatorPage> {
                   children: [
                     CustomPaint(
                       size: Size.infinite,
-                      painter: _BeamPainter(),
+                      painter: _BeamPainter(
+                          progress: ((log(_multiplier) / log(10)) * 1.6).clamp(0.0, 1.0)),
                     ),
                     CustomPaint(
                       size: Size.infinite,
@@ -172,6 +187,30 @@ class _AviatorPageState extends State<AviatorPage> {
                           fontSize: 56,
                           fontWeight: FontWeight.w900,
                           color: crashed ? Colors.grey : Colors.white,
+                        ),
+                      ),
+                    ),
+                    Positioned(
+                      right: 12,
+                      bottom: 12,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: Colors.black54,
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: const Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            CircleAvatar(radius: 10, backgroundColor: Colors.blueGrey),
+                            SizedBox(width: 4),
+                            CircleAvatar(radius: 10, backgroundColor: Colors.teal),
+                            SizedBox(width: 4),
+                            CircleAvatar(radius: 10, backgroundColor: Colors.brown),
+                            SizedBox(width: 8),
+                            Text('193', style: TextStyle(color: Colors.white)),
+                          ],
                         ),
                       ),
                     ),
@@ -217,6 +256,7 @@ class _AviatorPageState extends State<AviatorPage> {
               balance: _balance,
               onBetResult: (amt, win) => setState(() => _balance += win - amt),
               onBetPlaced: startRound,
+              showCardIcon: true,
             ),
             if (crashed)
               TextButton(
@@ -238,6 +278,7 @@ class BetPanel extends StatefulWidget {
   final double balance;
   final void Function(double amount, double win) onBetResult;
   final VoidCallback onBetPlaced;
+  final bool showCardIcon;
 
   const BetPanel({
     super.key,
@@ -247,6 +288,7 @@ class BetPanel extends StatefulWidget {
     required this.balance,
     required this.onBetResult,
     required this.onBetPlaced,
+    this.showCardIcon = false,
   });
 
   @override
@@ -313,43 +355,65 @@ class _BetPanelState extends State<BetPanel> {
           Expanded(
             child: Column(
               children: [
-                Container(
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF2A2F3A),
-                    borderRadius: BorderRadius.circular(20),
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: () => setState(() => _autoTab = false),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 6),
-                            child: Text('Bet',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                    color: !_autoTab
-                                        ? Colors.white
-                                        : Colors.white38)),
-                          ),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.center,
+                  children: [
+                    Expanded(
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF2A2F3A),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: GestureDetector(
+                                onTap: () => setState(() => _autoTab = false),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                      vertical: 6),
+                                  child: Text('Bet',
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                          color: !_autoTab
+                                              ? Colors.white
+                                              : Colors.white38)),
+                                ),
+                              ),
+                            ),
+                            Expanded(
+                              child: GestureDetector(
+                                onTap: () => setState(() => _autoTab = true),
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                      vertical: 6),
+                                  child: Text('Auto',
+                                      textAlign: TextAlign.center,
+                                      style: TextStyle(
+                                          color: _autoTab
+                                              ? Colors.white
+                                              : Colors.white38)),
+                                ),
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                      Expanded(
-                        child: GestureDetector(
-                          onTap: () => setState(() => _autoTab = true),
-                          child: Padding(
-                            padding: const EdgeInsets.symmetric(vertical: 6),
-                            child: Text('Auto',
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                    color: _autoTab
-                                        ? Colors.white
-                                        : Colors.white38)),
+                    ),
+                    if (widget.showCardIcon)
+                      Padding(
+                        padding: const EdgeInsets.only(left: 8),
+                        child: Container(
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF2A2F3A),
+                            borderRadius: BorderRadius.circular(8),
                           ),
+                          padding: const EdgeInsets.all(6),
+                          child: const Icon(Icons.credit_card,
+                              color: Colors.white54, size: 18),
                         ),
                       ),
-                    ],
-                  ),
+                  ],
                 ),
                 const SizedBox(height: 8),
                 Row(
@@ -438,7 +502,13 @@ class _PlanePainter extends CustomPainter {
           style: TextStyle(fontSize: 44, color: Color(0xFFE01E5A))),
       textDirection: TextDirection.ltr,
     )..layout();
-    painter.paint(canvas, end.translate(-18, -40));
+    final angle = atan2(-0.8 * progress * size.height,
+        size.width * progress * 0.5 + 0.001);
+    canvas.save();
+    canvas.translate(end.dx, end.dy - 20);
+    canvas.rotate(angle);
+    painter.paint(canvas, const Offset(-22, -22));
+    canvas.restore();
   }
 
   @override
@@ -446,6 +516,9 @@ class _PlanePainter extends CustomPainter {
 }
 
 class _BeamPainter extends CustomPainter {
+  final double progress;
+  _BeamPainter({this.progress = 0});
+
   @override
   void paint(Canvas canvas, Size size) {
     final center = Offset(0, size.height);
@@ -460,10 +533,19 @@ class _BeamPainter extends CustomPainter {
         ..close();
       canvas.drawPath(path, paint);
     }
+    // glow radial glow
+    final glowColor = Color.lerp(const Color(0xFF1565C0),const Color(0xFF6A1B9A),
+        progress)!;
+    final glow = Paint()
+      ..shader = RadialGradient(
+        colors: [glowColor.withValues(alpha: 0.35), Colors.transparent],
+      ).createShader(Rect.fromCircle(
+          center: Offset(size.width * 0.5, size.height * 0.35), radius: size.width));
+    canvas.drawRect(Offset.zero & size, glow);
   }
 
   @override
-  bool shouldRepaint(_) => false;
+  bool shouldRepaint(_BeamPainter old) => old.progress != progress;
 }
 
 class _CurvePainter extends CustomPainter {
