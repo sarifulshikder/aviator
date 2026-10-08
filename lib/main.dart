@@ -34,22 +34,36 @@ class AviatorPage extends StatefulWidget {
 class _AviatorPageState extends State<AviatorPage> {
   final _random = Random();
   Timer? _timer;
+  Timer? _nextRoundTimer;
 
   RoundState _state = RoundState.waiting;
   double _multiplier = 1.0;
   double _crashPoint = 2.0;
   double _balance = 29999.0;
-  final List<double> _history = [3.37, 4.18, 1.57, 1.23, 177.86, 1.85, 8.69, 1.40];
+  int _pendingCount = 0;
+  final List<double> _history = [2.21, 6.63, 1.62, 5.91, 2.44, 1.25, 1.13, 3.93];
 
   @override
   void dispose() {
     _timer?.cancel();
+    _nextRoundTimer?.cancel();
     super.dispose();
   }
 
   double _nextCrashPoint() {
     final r = _random.nextDouble();
     return (1.0 / (1.0 - r * 0.97)).clamp(1.0, 200.0);
+  }
+
+  void startRound() {
+    _nextRoundTimer?.cancel();
+    if (_state == RoundState.flying) return;
+    setState(() {
+      _multiplier = 1.0;
+      _crashPoint = _nextCrashPoint();
+      _state = RoundState.flying;
+    });
+    _timer = Timer.periodic(const Duration(milliseconds: 50), (_) => _tick());
   }
 
   void _tick() {
@@ -61,37 +75,30 @@ class _AviatorPageState extends State<AviatorPage> {
         _timer?.cancel();
         _history.insert(0, _crashPoint);
         if (_history.length > 10) _history.removeLast();
+        if (_pendingCount > 0) {
+          _nextRoundTimer = Timer(const Duration(seconds: 2), () {
+            if (_state == RoundState.crashed && _pendingCount > 0) startRound();
+          });
+        }
       }
     });
   }
 
-  void startRound() {
-    if (_state == RoundState.flying) return;
-    setState(() {
-      _multiplier = 1.0;
-      _crashPoint = _nextCrashPoint();
-      _state = RoundState.flying;
-    });
-    _timer = Timer.periodic(const Duration(milliseconds: 50), (_) => _tick());
-  }
-
-  void _newRound() {
-    setState(() {
-      _state = RoundState.waiting;
-      _multiplier = 1.0;
-    });
+  void _onPendingChanged(bool pending) {
+    setState(() => _pendingCount += pending ? 1 : -1);
+    if (_pendingCount == 0) _nextRoundTimer?.cancel();
   }
 
   @override
   Widget build(BuildContext context) {
     final flying = _state == RoundState.flying;
     final crashed = _state == RoundState.crashed;
+    final progress = ((log(_multiplier) / log(10)) * 1.6).clamp(0.0, 1.0);
 
     return Scaffold(
       body: SafeArea(
         child: Column(
           children: [
-            // Top bar: logo + balance + menu
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               child: Row(
@@ -115,7 +122,6 @@ class _AviatorPageState extends State<AviatorPage> {
                 ],
               ),
             ),
-            // History row
             SizedBox(
               height: 28,
               child: ListView.separated(
@@ -129,27 +135,14 @@ class _AviatorPageState extends State<AviatorPage> {
                       style: TextStyle(
                           fontSize: 14,
                           color: m >= 10
-                              ? const Color(0xFFAA4DEE)
-                              : const Color(0xFF2196F3)));
+                              ? const Color(0xFFE91E63)
+                              : (m >= 2
+                                  ? const Color(0xFFAA4DEE)
+                                  : const Color(0xFF2196F3))));
                 },
               ),
             ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              child: Align(
-                alignment: Alignment.centerRight,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: const Color(0xFF2A2F3A),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Text('...', style: TextStyle(color: Colors.white54)),
-                ),
-              ),
-            ),
             const SizedBox(height: 8),
-            // Game area
             Expanded(
               child: Container(
                 margin: const EdgeInsets.symmetric(horizontal: 4),
@@ -162,34 +155,52 @@ class _AviatorPageState extends State<AviatorPage> {
                   children: [
                     CustomPaint(
                       size: Size.infinite,
-                      painter: _BeamPainter(
-                          progress: ((log(_multiplier) / log(10)) * 1.6).clamp(0.0, 1.0)),
+                      painter: _BeamPainter(progress: progress),
                     ),
-                    CustomPaint(
-                      size: Size.infinite,
-                      painter: _CurvePainter(
-                          progress: ((log(_multiplier) / log(10)) * 1.6).clamp(0.0, 1.0),
-                          crashed: crashed),
-                    ),
-                    if (flying || crashed)
-                      Builder(builder: (context) {
-                        final progress = ((log(_multiplier) / log(10)) * 1.6).clamp(0.0, 1.0);
-                        return Positioned.fill(
-                          child: CustomPaint(
-                            painter: _PlanePainter(progress: progress),
+                    if (flying)
+                      CustomPaint(
+                        size: Size.infinite,
+                        painter: _CurvePainter(progress: progress, crashed: false),
+                      ),
+                    if (flying)
+                      Positioned.fill(
+                        child: CustomPaint(
+                            painter: _FlyingPlanePainter(progress: progress)),
+                      ),
+                    if (!flying && !crashed)
+                      Positioned.fill(
+                        child: CustomPaint(painter: _ParkedPlanePainter()),
+                      ),
+                    if (flying)
+                      Center(
+                        child: Text(
+                          '${_multiplier.toStringAsFixed(2)}x',
+                          style: const TextStyle(
+                            fontSize: 56,
+                            fontWeight: FontWeight.w900,
+                            color: Colors.white,
                           ),
-                        );
-                      }),
-                    Center(
-                      child: Text(
-                        '${_multiplier.toStringAsFixed(2)}x',
-                        style: TextStyle(
-                          fontSize: 56,
-                          fontWeight: FontWeight.w900,
-                          color: crashed ? Colors.grey : Colors.white,
                         ),
                       ),
-                    ),
+                    if (crashed)
+                      Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Text('FLEW AWAY!',
+                                style: TextStyle(
+                                    color: Colors.white, fontSize: 22)),
+                            Text(
+                              '${_multiplier.toStringAsFixed(2)}x',
+                              style: const TextStyle(
+                                fontSize: 56,
+                                fontWeight: FontWeight.w900,
+                                color: Color(0xFFD8232A),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     Positioned(
                       right: 12,
                       bottom: 12,
@@ -203,11 +214,14 @@ class _AviatorPageState extends State<AviatorPage> {
                         child: const Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            CircleAvatar(radius: 10, backgroundColor: Colors.blueGrey),
+                            CircleAvatar(
+                                radius: 10, backgroundColor: Colors.blueGrey),
                             SizedBox(width: 4),
-                            CircleAvatar(radius: 10, backgroundColor: Colors.teal),
+                            CircleAvatar(
+                                radius: 10, backgroundColor: Colors.teal),
                             SizedBox(width: 4),
-                            CircleAvatar(radius: 10, backgroundColor: Colors.brown),
+                            CircleAvatar(
+                                radius: 10, backgroundColor: Colors.brown),
                             SizedBox(width: 8),
                             Text('193', style: TextStyle(color: Colors.white)),
                           ],
@@ -239,31 +253,26 @@ class _AviatorPageState extends State<AviatorPage> {
               ),
             ),
             const SizedBox(height: 8),
-            // Two bet panels
             BetPanel(
               multiplier: _multiplier,
               state: _state,
-              crashPoint: _crashPoint,
               balance: _balance,
-              onBetResult: (amt, win) => setState(() => _balance += win - amt),
+              onBet: (amt) => setState(() => _balance -= amt),
+              onWin: (win) => setState(() => _balance += win),
               onBetPlaced: startRound,
+              onPendingChanged: _onPendingChanged,
             ),
             const SizedBox(height: 8),
             BetPanel(
               multiplier: _multiplier,
               state: _state,
-              crashPoint: _crashPoint,
               balance: _balance,
-              onBetResult: (amt, win) => setState(() => _balance += win - amt),
+              onBet: (amt) => setState(() => _balance -= amt),
+              onWin: (win) => setState(() => _balance += win),
               onBetPlaced: startRound,
+              onPendingChanged: _onPendingChanged,
               showCardIcon: true,
             ),
-            if (crashed)
-              TextButton(
-                onPressed: _newRound,
-                child: const Text('TAP TO CONTINUE',
-                    style: TextStyle(color: Colors.white70)),
-              ),
           ],
         ),
       ),
@@ -274,20 +283,22 @@ class _AviatorPageState extends State<AviatorPage> {
 class BetPanel extends StatefulWidget {
   final double multiplier;
   final RoundState state;
-  final double crashPoint;
   final double balance;
-  final void Function(double amount, double win) onBetResult;
+  final void Function(double amt) onBet;
+  final void Function(double win) onWin;
   final VoidCallback onBetPlaced;
+  final ValueChanged<bool> onPendingChanged;
   final bool showCardIcon;
 
   const BetPanel({
     super.key,
     required this.multiplier,
     required this.state,
-    required this.crashPoint,
     required this.balance,
-    required this.onBetResult,
+    required this.onBet,
+    required this.onWin,
     required this.onBetPlaced,
+    required this.onPendingChanged,
     this.showCardIcon = false,
   });
 
@@ -298,51 +309,120 @@ class BetPanel extends StatefulWidget {
 class _BetPanelState extends State<BetPanel> {
   double _amount = 1.0;
   double? _cashedAt;
-  bool _betPlaced = false;
+  bool _pendingBet = false;
+  bool _activeBet = false;
   bool _autoTab = false;
-  bool _resolved = false;
-
 
   @override
   void didUpdateWidget(BetPanel old) {
     super.didUpdateWidget(old);
-    if (widget.state == RoundState.flying && _betPlaced && _cashedAt == null) {
-      // still flying
-    }
-    if (widget.state == RoundState.crashed && _betPlaced && !_resolved) {
-      _resolved = true;
-      // stake was already deducted at bet time; winnings were credited at cashout
-      _betPlaced = false;
-      _cashedAt = null;
-    }
-    if (widget.state == RoundState.waiting && _resolved) {
-      _resolved = false;
+    if (widget.state != old.state) {
+      if (widget.state == RoundState.flying) {
+        if (_pendingBet && !_activeBet) {
+          _activeBet = true;
+          widget.onBet(_amount); // deduct stake
+        }
+      } else {
+        // waiting or crashed: round over / not started
+        _activeBet = false;
+        _cashedAt = null;
+      }
     }
   }
 
   void _bet() {
-    if (widget.state == RoundState.flying) return;
-    setState(() {
-      _betPlaced = true;
-      _cashedAt = null;
-      _resolved = false;
-    });
-    widget.onBetResult(_amount, 0); // deduct stake; winnings credited at cashout
-    widget.onBetPlaced();
+    _pendingBet = true;
+    widget.onPendingChanged(true);
+    widget.onBetPlaced(); // starts round if not flying
+    setState(() {});
+  }
+
+  void _cancel() {
+    _pendingBet = false;
+    widget.onPendingChanged(false);
+    setState(() {});
   }
 
   void _cashOut() {
-    if (widget.state != RoundState.flying || !_betPlaced || _cashedAt != null) {
+    if (widget.state != RoundState.flying || !_activeBet || _cashedAt != null) {
       return;
     }
     setState(() => _cashedAt = widget.multiplier);
-    widget.onBetResult(0, _amount * widget.multiplier);
+    widget.onWin(_amount * widget.multiplier);
   }
 
   @override
   Widget build(BuildContext context) {
     final flying = widget.state == RoundState.flying;
-    final active = _betPlaced && flying;
+
+    Widget action;
+    if (_activeBet && flying) {
+      if (_cashedAt == null) {
+        action = ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: const Color(0xFFE07B00),
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14)),
+          ),
+          onPressed: _cashOut,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Cash Out', style: TextStyle(fontSize: 22)),
+              Text('${(_amount * widget.multiplier).toStringAsFixed(2)} USD'),
+            ],
+          ),
+        );
+      } else {
+        action = ElevatedButton(
+          style: ElevatedButton.styleFrom(
+            backgroundColor: Colors.grey,
+            shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(14)),
+          ),
+          onPressed: null,
+          child: const Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('Cashed Out', style: TextStyle(fontSize: 22)),
+            ],
+          ),
+        );
+      }
+    } else if (_pendingBet) {
+      action = ElevatedButton(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color(0xFFB3122E),
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14)),
+        ),
+        onPressed: _cancel,
+        child: const Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text('Cancel', style: TextStyle(fontSize: 22)),
+            Text('Waiting for next round', style: TextStyle(fontSize: 14)),
+          ],
+        ),
+      );
+    } else {
+      action = ElevatedButton(
+        style: ElevatedButton.styleFrom(
+          backgroundColor: const Color(0xFF2E9E1B),
+          shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(14)),
+        ),
+        onPressed: _activeBet ? null : _bet,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Bet', style: TextStyle(fontSize: 22)),
+            Text('${_amount.toStringAsFixed(2)} USD'),
+          ],
+        ),
+      );
+    }
+
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 8),
       padding: const EdgeInsets.all(10),
@@ -356,7 +436,6 @@ class _BetPanelState extends State<BetPanel> {
             child: Column(
               children: [
                 Row(
-                  crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
                     Expanded(
                       child: Container(
@@ -449,39 +528,7 @@ class _BetPanelState extends State<BetPanel> {
           ),
           const SizedBox(width: 10),
           Expanded(
-            child: SizedBox(
-              height: 90,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: active
-                      ? (_cashedAt != null
-                          ? Colors.grey
-                          : const Color(0xFFE07B00))
-                      : const Color(0xFF2E9E1B),
-                  shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14)),
-                ),
-                onPressed: active
-                    ? (_cashedAt != null ? null : _cashOut)
-                    : (flying ? null : _bet),
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Text(
-                      active
-                          ? (_cashedAt != null ? 'Cashed Out' : 'Cash Out')
-                          : 'Bet',
-                      style: const TextStyle(fontSize: 22),
-                    ),
-                    Text(
-                      active && _cashedAt == null
-                          ? '${(_amount * widget.multiplier).toStringAsFixed(2)} USD'
-                          : '${_amount.toStringAsFixed(2)} USD',
-                    ),
-                  ],
-                ),
-              ),
-            ),
+            child: SizedBox(height: 90, child: action),
           ),
         ],
       ),
@@ -489,13 +536,30 @@ class _BetPanelState extends State<BetPanel> {
   }
 }
 
-class _PlanePainter extends CustomPainter {
+class _ParkedPlanePainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final painter = TextPainter(
+      text: const TextSpan(
+          text: '✈',
+          style: TextStyle(fontSize: 44, color: Color(0xFFE01E5A))),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    painter.paint(canvas, Offset(20, size.height - 70));
+  }
+
+  @override
+  bool shouldRepaint(_) => false;
+}
+
+class _FlyingPlanePainter extends CustomPainter {
   final double progress;
-  _PlanePainter({required this.progress});
+  _FlyingPlanePainter({required this.progress});
 
   @override
   void paint(Canvas canvas, Size size) {
-    final end = Offset(size.width * progress, size.height * (1 - progress * 0.8));
+    final end =
+        Offset(size.width * progress, size.height * (1 - progress * 0.8));
     final painter = TextPainter(
       text: const TextSpan(
           text: '✈',
@@ -512,7 +576,7 @@ class _PlanePainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_PlanePainter old) => old.progress != progress;
+  bool shouldRepaint(_FlyingPlanePainter old) => old.progress != progress;
 }
 
 class _BeamPainter extends CustomPainter {
@@ -528,19 +592,21 @@ class _BeamPainter extends CustomPainter {
       final a2 = a1 - 0.06;
       final path = Path()
         ..moveTo(center.dx, center.dy)
-        ..lineTo(center.dx + size.width * 2 * cos(a1), center.dy + size.width * 2 * sin(a1))
-        ..lineTo(center.dx + size.width * 2 * cos(a2), center.dy + size.width * 2 * sin(a2))
+        ..lineTo(center.dx + size.width * 2 * cos(a1),
+            center.dy + size.width * 2 * sin(a1))
+        ..lineTo(center.dx + size.width * 2 * cos(a2),
+            center.dy + size.width * 2 * sin(a2))
         ..close();
       canvas.drawPath(path, paint);
     }
-    // glow radial glow
-    final glowColor = Color.lerp(const Color(0xFF1565C0),const Color(0xFF6A1B9A),
-        progress)!;
+    final glowColor = Color.lerp(
+        const Color(0xFF1565C0), const Color(0xFF6A1B9A), progress)!;
     final glow = Paint()
       ..shader = RadialGradient(
         colors: [glowColor.withValues(alpha: 0.35), Colors.transparent],
       ).createShader(Rect.fromCircle(
-          center: Offset(size.width * 0.5, size.height * 0.35), radius: size.width));
+          center: Offset(size.width * 0.5, size.height * 0.35),
+          radius: size.width));
     canvas.drawRect(Offset.zero & size, glow);
   }
 
@@ -556,7 +622,8 @@ class _CurvePainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final start = Offset(0, size.height);
-    final end = Offset(size.width * progress, size.height * (1 - progress * 0.8));
+    final end = Offset(
+        size.width * progress, size.height * (1 - progress * 0.8));
 
     final curve = Path()
       ..moveTo(start.dx, start.dy)
