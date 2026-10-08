@@ -206,10 +206,8 @@ class _AviatorPageState extends State<AviatorPage> {
               state: _state,
               crashPoint: _crashPoint,
               balance: _balance,
-              onBetResult: (amt, win) => setState(() {
-                _balance += win - amt;
-                if (_state == RoundState.waiting) startRound();
-              }),
+              onBetResult: (amt, win) => setState(() => _balance += win - amt),
+              onBetPlaced: startRound,
             ),
             const SizedBox(height: 8),
             BetPanel(
@@ -217,10 +215,8 @@ class _AviatorPageState extends State<AviatorPage> {
               state: _state,
               crashPoint: _crashPoint,
               balance: _balance,
-              onBetResult: (amt, win) => setState(() {
-                _balance += win - amt;
-                if (_state == RoundState.waiting) startRound();
-              }),
+              onBetResult: (amt, win) => setState(() => _balance += win - amt),
+              onBetPlaced: startRound,
             ),
             if (crashed)
               TextButton(
@@ -241,6 +237,7 @@ class BetPanel extends StatefulWidget {
   final double crashPoint;
   final double balance;
   final void Function(double amount, double win) onBetResult;
+  final VoidCallback onBetPlaced;
 
   const BetPanel({
     super.key,
@@ -249,6 +246,7 @@ class BetPanel extends StatefulWidget {
     required this.crashPoint,
     required this.balance,
     required this.onBetResult,
+    required this.onBetPlaced,
   });
 
   @override
@@ -271,8 +269,7 @@ class _BetPanelState extends State<BetPanel> {
     }
     if (widget.state == RoundState.crashed && _betPlaced && !_resolved) {
       _resolved = true;
-      final win = _cashedAt != null ? _amount * _cashedAt! : 0.0;
-      widget.onBetResult(_amount, win);
+      // stake was already deducted at bet time; winnings were credited at cashout
       _betPlaced = false;
       _cashedAt = null;
     }
@@ -288,9 +285,8 @@ class _BetPanelState extends State<BetPanel> {
       _cashedAt = null;
       _resolved = false;
     });
-    widget.onBetResult(_amount, 0); // deduct stake (win=0), credited via cashout
-    _betPlaced = true;
-    setState(() {});
+    widget.onBetResult(_amount, 0); // deduct stake; winnings credited at cashout
+    widget.onBetPlaced();
   }
 
   void _cashOut() {
@@ -298,6 +294,7 @@ class _BetPanelState extends State<BetPanel> {
       return;
     }
     setState(() => _cashedAt = widget.multiplier);
+    widget.onBetResult(0, _amount * widget.multiplier);
   }
 
   @override
