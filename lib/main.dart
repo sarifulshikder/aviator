@@ -130,8 +130,9 @@ class _AviatorPageState extends State<AviatorPage> {
 
     return Scaffold(
       body: SafeArea(
-        child: Column(
-          children: [
+        child: SingleChildScrollView(
+          child: Column(
+            children: [
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               child: Row(
@@ -189,7 +190,8 @@ class _AviatorPageState extends State<AviatorPage> {
               ),
             ),
             const SizedBox(height: 8),
-            Expanded(
+            SizedBox(
+              height: MediaQuery.of(context).size.height * 0.40,
               child: Container(
                 margin: const EdgeInsets.symmetric(horizontal: 4),
                 clipBehavior: Clip.antiAlias,
@@ -219,7 +221,7 @@ class _AviatorPageState extends State<AviatorPage> {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             CustomPaint(
-                              size: const Size(260, 120),
+                              size: const Size(220, 90),
                               painter: _FrontPlanePainter(),
                             ),
                             const SizedBox(height: 16),
@@ -247,7 +249,8 @@ class _AviatorPageState extends State<AviatorPage> {
                                     ),
                                   ),
                                   const SizedBox(height: 8),
-                                  Row(
+                                  FittedBox(
+                                    child: Row(
                                     mainAxisAlignment:
                                         MainAxisAlignment.center,
                                     children: const [
@@ -261,6 +264,7 @@ class _AviatorPageState extends State<AviatorPage> {
                                               color: Color(0xFFD8232A),
                                               fontWeight: FontWeight.bold)),
                                     ],
+                                  ),
                                   ),
                                 ],
                               ),
@@ -388,6 +392,7 @@ class _AviatorPageState extends State<AviatorPage> {
               ),
             ),
           ],
+          ),
         ),
       ),
     );
