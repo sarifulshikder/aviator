@@ -42,7 +42,6 @@ class _AviatorPageState extends State<AviatorPage> {
   double _bet = 100.0;
   double? _cashoutAt;
   bool _betPlaced = false;
-  int _countdown = 3;
   final _betController = TextEditingController(text: '100');
   String _message = 'Place your bet!';
 
@@ -108,7 +107,6 @@ class _AviatorPageState extends State<AviatorPage> {
       _multiplier = 1.0;
       _cashoutAt = null;
       _betPlaced = false;
-      _countdown = 3;
       _message = 'Place your bet!';
     });
   }
