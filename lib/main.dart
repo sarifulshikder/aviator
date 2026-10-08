@@ -709,19 +709,64 @@ class _FlyingPlanePainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final end = Offset(
         size.width * progress, size.height * (1 - progress * 0.8));
-    final painter = TextPainter(
-      text: const TextSpan(
-          text: '✈',
-          style: TextStyle(fontSize: 44, color: Color(0xFFD8232A))),
-      textDirection: TextDirection.ltr,
-    )..layout();
     final angle = atan2(-0.8 * progress * size.height,
         size.width * progress * 0.5 + 0.001);
     canvas.save();
     canvas.translate(end.dx, end.dy - 20);
     canvas.rotate(angle);
-    painter.paint(canvas, const Offset(-22, -22));
+    _drawSidePlane(canvas);
     canvas.restore();
+  }
+
+  void _drawSidePlane(Canvas canvas) {
+    final red = Paint()
+      ..color = const Color(0xFFD8232A)
+      ..style = PaintingStyle.fill;
+    final dark = Paint()..color = const Color(0xFF8E1418);
+
+    // main wing
+    final wing = Path()
+      ..moveTo(-4, 2)
+      ..lineTo(-26, 30)
+      ..lineTo(-40, 30)
+      ..lineTo(-18, 2)
+      ..close();
+    canvas.drawPath(wing, red);
+    // tail fin
+    final tail = Path()
+      ..moveTo(-34, -4)
+      ..lineTo(-46, -24)
+      ..lineTo(-38, -24)
+      ..lineTo(-24, -4)
+      ..close();
+    canvas.drawPath(tail, red);
+    // fuselage
+    final fuse = Path()
+      ..moveTo(-44, 2)
+      ..quadraticBezierTo(-30, -16, 4, -12)
+      ..quadraticBezierTo(34, -10, 46, 0)
+      ..quadraticBezierTo(50, 4, 40, 9)
+      ..quadraticBezierTo(10, 17, -24, 13)
+      ..quadraticBezierTo(-42, 11, -44, 2)
+      ..close();
+    canvas.drawPath(fuse, red);
+    // nose
+    canvas.drawCircle(const Offset(44, 2), 7, dark);
+    // cockpit
+    canvas.drawRRect(
+        RRect.fromRectAndRadius(
+            const Rect.fromLTWH(18, -11, 14, 8), const Radius.circular(4)),
+        dark);
+    // propeller
+    canvas.drawOval(
+        Rect.fromCenter(
+            center: const Offset(52, 0), width: 7, height: 34),
+        red);
+    // stripe
+    canvas.drawLine(const Offset(-30, 6), const Offset(30, 3),
+        Paint()
+          ..color = const Color(0xFFFFC0C4)
+          ..strokeWidth = 2);
   }
 
   @override
