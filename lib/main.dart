@@ -135,24 +135,39 @@ class _AviatorPageState extends State<AviatorPage> {
                   color: const Color(0xFF1B2A44),
                   borderRadius: BorderRadius.circular(16),
                 ),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
+                child: Stack(
                   children: [
-                    Text(
-                      '${_multiplier.toStringAsFixed(2)}x',
-                      style: TextStyle(
-                        fontSize: 64,
-                        fontWeight: FontWeight.bold,
-                        color: crashed ? Colors.redAccent : Colors.white,
+                    Center(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            '${_multiplier.toStringAsFixed(2)}x',
+                            style: TextStyle(
+                              fontSize: 64,
+                              fontWeight: FontWeight.bold,
+                              color: crashed ? Colors.redAccent : Colors.white,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(crashed ? 'FLEW AWAY' : _message,
+                              style: const TextStyle(fontSize: 16)),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      crashed ? 'FLEW AWAY' : (flying ? '✈' : '—'),
-                      style: const TextStyle(fontSize: 40),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(_message, style: const TextStyle(fontSize: 16)),
+                    if (flying || crashed)
+                      Positioned(
+                        left: (_multiplier - 1).clamp(0.0, 9.0) / 10 *
+                            (MediaQuery.of(context).size.width - 140),
+                        bottom: (_multiplier - 1).clamp(0.0, 9.0) / 10 * 220,
+                        child: Transform.rotate(
+                          angle: -0.5,
+                          child: Text(
+                            crashed ? '💥' : '✈️',
+                            style: const TextStyle(fontSize: 44),
+                          ),
+                        ),
+                      ),
                   ],
                 ),
               ),
